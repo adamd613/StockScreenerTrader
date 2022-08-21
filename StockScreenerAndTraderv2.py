@@ -5,14 +5,14 @@ from datetime import timedelta, date
 import matplotlib.pyplot as plt
 from scipy import stats
 import sqlite3 as sl
-#This is a Test
+#This is a Test 2
 
 def runTradeAlgo():    
     conn = sl.connect("AlgoDB.db")
     #cursor = conn.cursor()
 
     print("Running Script... Be sure to run after market close and stock data is posted to Yahoo Finance for the day.") 
-    #Variables
+    #Variablesd
     dateRangeVar = 180
     slopeThresh = .1
     varThresh = .05
