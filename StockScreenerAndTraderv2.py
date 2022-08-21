@@ -5,7 +5,7 @@ from datetime import timedelta, date
 import matplotlib.pyplot as plt
 from scipy import stats
 import sqlite3 as sl
-
+#This is a Test
 
 def runTradeAlgo():    
     conn = sl.connect("AlgoDB.db")
