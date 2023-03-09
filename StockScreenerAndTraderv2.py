@@ -1,17 +1,19 @@
 import pandas as pd
-from pandas_datareader import data
+import yfinance as yf
 import datetime as dt
-from datetime import timedelta, date
-import matplotlib.pyplot as plt
+from datetime import  date
 from scipy import stats
 import sqlite3 as sl
+import warnings
 
-def runTradeAlgo():    
+
+def runTradeAlgo():   
+    warnings.filterwarnings("ignore") 
     conn = sl.connect("AlgoDB.db")
     #cursor = conn.cursor()
 
     print("Running Script... Be sure to run after market close and stock data is posted to Yahoo Finance for the day.") 
-    #Variablesd
+    #Variables
     dateRangeVar = 180
     slopeThresh = .1
     varThresh = .05
@@ -21,8 +23,11 @@ def runTradeAlgo():
     sellAmt = 100
     startingMoney = 10000
 
+    #set to true if you are testing
+    amTesting = False
+
     #Set this to 0 for automatic calculation, Recommended be set 20 - 25:
-    manualVixThresh = 22
+    manualVixThresh = 25
 
     #(yes/no) Calculate Slope and Var thresh?
     slopeVarCalc = 'yes'
@@ -49,21 +54,25 @@ def runTradeAlgo():
         else:          
             print('Data already exists for today...')
             canRun = False
-            #canRun = True  
+            if amTesting == True:
+                canRun = True #for testing 
     except:
         print('No Database Detected, a new one will be created... Continuing.')
         canRun = True
 
     #Second check if should run    
-    MKTTest = data.DataReader(['^GSPC'], 'yahoo', start=startDate, end=endDate).reset_index()
+    MKTTest = yf.download(['^GSPC'], start=startDate, end=endDate).reset_index()
     MKTTest = MKTTest['Date'].max()
+
     if MKTTest.date() == endDate:
         print("Market was open today, Continuing...")
         canRun2 = True
     else:
-        print("No new Stock Data, was the market open today?")
+        print("Today is",MKTTest.date(),"No new Stock Data, was the market open today?")
         canRun2 = False
-        #canRun2 = True
+        if amTesting == True:
+            canRun2 = True #for testing
+        canRun2 = True #override
 
     if canRun == True and canRun2 == True:  # Can also use this: date.today().weekday() <=4 
         print("Pulling Stock Data") 
@@ -74,7 +83,8 @@ def runTradeAlgo():
         wp = w[['Symbol','GICS Sector']]
         w = w['Symbol']        
         w = w.reset_index()
-        #w = w.loc[:2]
+        if amTesting == True:
+            w = w.loc[:20] #for Testing
         w = w.append({'Symbol':'^VIX'}, ignore_index = True)
         w = w.append({'Symbol':'^GSPC'}, ignore_index = True)
         iterations = len(w)
@@ -84,17 +94,19 @@ def runTradeAlgo():
         for x in range(iterations): 
             try:
                 #Pick a ticker
-                myTicker = w['Symbol'].iloc[x]
+                myTicker = w['Symbol'].iloc[x]                
 
                 #List Prices
-                Prices = data.DataReader([myTicker], 'yahoo', start=startDate, end=endDate)         
+                print(myTicker)
+                Prices = yf.download([myTicker], start=startDate, end=endDate)         
                 Prices = Prices['Adj Close']
                 Prices = Prices.reset_index()
+                Prices = Prices.rename(columns = {'Adj Close':myTicker})    
 
                 #Find Stats
                 stdPrice = Prices.std()[myTicker]
                 avgPrice = Prices.mean()[myTicker]
-                tradeDays = Prices.count()[myTicker]
+                tradeDays = Prices.count()[myTicker]                
 
                 #Total Peaks and Troughs
                 Prices['Peak'] = Prices[myTicker].apply(lambda x: 1 if x >= (avgPrice + stdPrice)  else 0)
@@ -267,7 +279,9 @@ def runTradeAlgo():
         tempJoin = stockLedger[['Symbol','Shares','Amount']]
         tempJoin['tempSymbol'] = tempJoin['Symbol']
         tempJoin['CostBasis'] = tempJoin['Amount']
-        tempJoin['CostBasis'] = tempJoin[['Amount','Shares']].apply(lambda x: negativeCon(*x), axis=1)
+        print(tempJoin)
+        if len(tempJoin) > 0: #prevents erroring out if there are no qualifiers
+            tempJoin['CostBasis'] = tempJoin[['Amount','Shares']].apply(lambda x: negativeCon(*x), axis=1)
         tempJoin = tempJoin.groupby(['tempSymbol']).agg({'CostBasis':sum}).reset_index() 
         aggHoldings = pd.merge(aggHoldings, tempJoin, how="left",left_on='Symbol',right_on='tempSymbol')
         aggHoldings = aggHoldings[['Symbol','Shares','Date','LastPrice','value','CostBasis']]
